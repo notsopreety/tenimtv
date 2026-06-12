@@ -1,6 +1,7 @@
 import { fetchCricketData, fetchFootballData, ApiResponse } from "@/app/utils/fetchData";
 import MatchCard from "@/app/components/MatchCard";
 import { Trophy, Calendar } from "lucide-react";
+import { Analytics } from "@vercel/analytics/next";
 
 export const revalidate = 60; // Revalidate every minute
 
@@ -88,4 +89,5 @@ export default async function Home() {
       </section>
     </div>
   );
+  <Analytics/>
 }
