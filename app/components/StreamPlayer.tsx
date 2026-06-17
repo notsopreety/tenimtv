@@ -16,6 +16,7 @@ export default function StreamPlayer({ channelName, url, id }: StreamPlayerProps
   const [streamData, setStreamData] = useState<StreamUrlResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [playMode, setPlayMode] = useState<'shaka' | 'iframe'>('iframe');
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Load stream metadata
   useEffect(() => {
@@ -25,6 +26,7 @@ export default function StreamPlayer({ channelName, url, id }: StreamPlayerProps
     const timer = setTimeout(() => {
       setStreamData(null);
       setLoading(false);
+      setFetchError(null);
 
       if (!id) {
         setPlayMode('iframe');
@@ -42,8 +44,10 @@ export default function StreamPlayer({ channelName, url, id }: StreamPlayerProps
             if (data && data.url) {
               setStreamData(data);
               setPlayMode('shaka');
+              setFetchError(null);
             } else {
               setPlayMode('iframe');
+              setFetchError('No live URL provided');
             }
           }
         })
@@ -51,6 +55,7 @@ export default function StreamPlayer({ channelName, url, id }: StreamPlayerProps
           console.error(err);
           if (isCurrent) {
             setPlayMode('iframe');
+            setFetchError(err.message || 'Stream connection failed');
           }
         })
         .finally(() => {
@@ -219,23 +224,55 @@ export default function StreamPlayer({ channelName, url, id }: StreamPlayerProps
         </div>
       )}
 
-      {/* Selector & Indicator */}
-      <div className="flex items-center justify-between text-xs text-zinc-400 px-1">
-        <span>Current Channel: <strong className="text-zinc-200">{channelName}</strong></span>
+      {/* Selector & Indicator Card */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-zinc-400 px-3 py-2.5 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-xl">
+        <div className="flex flex-col gap-1">
+          <span>Current Channel: <strong className="text-zinc-800 dark:text-zinc-200">{channelName}</strong></span>
+          {/* Status Indicator */}
+          {id && (
+            <div className="mt-1">
+              {loading ? (
+                <span className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full animate-pulse border border-amber-500/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                  Checking stream availability & live status...
+                </span>
+              ) : playMode === 'shaka' && streamData?.url ? (
+                <span className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live Stream Connected (Direct Shaka Player)
+                </span>
+              ) : fetchError ? (
+                <span className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-zinc-500 bg-zinc-500/10 px-2 py-0.5 rounded-full border border-zinc-250/20 dark:border-zinc-700/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-400" />
+                  Direct player offline ({fetchError}). Falling back to iframe...
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-zinc-500 bg-zinc-500/10 px-2 py-0.5 rounded-full border border-zinc-250/20 dark:border-zinc-700/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-400" />
+                  Web Player Active (Iframe Embed)
+                </span>
+              )}
+            </div>
+          )}
+        </div>
         {id && streamData?.url && (
           <div className="flex gap-2">
             <button
               onClick={() => setPlayMode('shaka')}
-              className={`px-3 py-1 rounded transition-colors ${
-                playMode === 'shaka' ? 'bg-zinc-800 text-white font-semibold' : 'bg-transparent hover:text-white'
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                playMode === 'shaka'
+                  ? 'bg-emerald-500 text-white shadow-xs shadow-emerald-500/10'
+                  : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-350 hover:bg-zinc-200 dark:hover:bg-zinc-800'
               }`}
             >
               Direct Shaka Player
             </button>
             <button
               onClick={() => setPlayMode('iframe')}
-              className={`px-3 py-1 rounded transition-colors ${
-                playMode === 'iframe' ? 'bg-zinc-800 text-white font-semibold' : 'bg-transparent hover:text-white'
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                playMode === 'iframe'
+                  ? 'bg-emerald-500 text-white shadow-xs shadow-emerald-500/10'
+                  : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-350 hover:bg-zinc-200 dark:hover:bg-zinc-800'
               }`}
             >
               Iframe Embed

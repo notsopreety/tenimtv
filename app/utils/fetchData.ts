@@ -189,12 +189,54 @@ export async function fetchFootballData(): Promise<ApiResponse> {
 export async function fetchStreamData(id: string): Promise<StreamResponse> {
   const cleanId = id.trim().replace(/\.json$/i, "");
   const res = await fetch(`https://cdn.singhs.com.np/${cleanId}.json`, {
-    next: { revalidate: 30 }, // Cache for 30 seconds
+    cache: "no-store",
   });
   if (!res.ok) {
     throw new Error(`Failed to fetch stream details for ${cleanId}`);
   }
-  return await res.json();
+  const data = await res.json();
+  const rawEvents = data && Array.isArray(data.events) ? data.events : [];
+  
+  // Sanitize the events array to remove dividers and string anomalies
+  const events = rawEvents
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .filter((e: any) => e && typeof e === "object" && !Array.isArray(e))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((e: any) => ({
+      name: e.name ? String(e.name).trim() : "",
+      link: e.link ? String(e.link).trim() : undefined,
+      links: Array.isArray(e.links) ? e.links.map((l: unknown) => String(l).trim()) : undefined,
+    }));
+
+  return { events };
+}
+
+export function extractStreamId(url: string): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    // Check for common query params
+    const id = parsed.searchParams.get("yosintv") || 
+               parsed.searchParams.get("tenimtv") || 
+               parsed.searchParams.get("id");
+    if (id) return id;
+    
+    // Check pathname (e.g. /portugal.json)
+    const pathname = parsed.pathname;
+    if (pathname.endsWith(".json")) {
+      const parts = pathname.split("/");
+      const filename = parts[parts.length - 1];
+      return filename.replace(/\.json$/i, "");
+    }
+  } catch {
+    // regex fallback
+    const matchParam = url.match(/[?&](?:yosintv|tenimtv|id)=([^&]+)/);
+    if (matchParam) return matchParam[1];
+    
+    const matchJson = url.match(/\/([^/]+)\.json/);
+    if (matchJson) return matchJson[1];
+  }
+  return null;
 }
 
 export async function findMatchDetails(id: string): Promise<FootballMatch | null> {
@@ -213,7 +255,15 @@ export async function findMatchDetails(id: string): Promise<FootballMatch | null
 
     const match = allMatches.find((m) => {
       const link = (m.details_url || m.streaming_url || "").toLowerCase();
-      return link.includes(`yosintv=${id.toLowerCase()}`) || link.includes(`/${id.toLowerCase()}.json`);
+      const team1 = (m.team1 || "").toLowerCase();
+      const team2 = (m.team2 || "").toLowerCase();
+      const queryLower = id.toLowerCase();
+      return (
+        link.includes(`yosintv=${queryLower}`) || 
+        link.includes(`/${queryLower}.json`) ||
+        team1.includes(queryLower) ||
+        team2.includes(queryLower)
+      );
     });
 
     return match || null;

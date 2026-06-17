@@ -1,4 +1,4 @@
-import { fetchStreamData, findMatchDetails, fetchServer2Data } from "@/app/utils/fetchData";
+import { fetchStreamData, findMatchDetails, fetchServer2Data, extractStreamId } from "@/app/utils/fetchData";
 import StreamViewer from "./StreamViewer";
 import { Tv } from "lucide-react";
 
@@ -20,11 +20,22 @@ export default async function MatchPage({ searchParams }: PageProps) {
     );
   }
 
-  // Fetch stream links, Server 2 links, and match metadata concurrently
-  const [streamData, server2Streams, matchDetails] = await Promise.all([
-    fetchStreamData(tenimtv).catch(() => ({ events: [] })),
-    fetchServer2Data(tenimtv).catch(() => []),
-    findMatchDetails(tenimtv).catch(() => null),
+  // 1. First find the match details from the query
+  const matchDetails = await findMatchDetails(tenimtv).catch(() => null);
+
+  // 2. Resolve the correct stream filename ID
+  let streamId = tenimtv;
+  if (matchDetails) {
+    const extId = extractStreamId(matchDetails.streaming_url) || extractStreamId(matchDetails.details_url);
+    if (extId) {
+      streamId = extId;
+    }
+  }
+
+  // 3. Fetch stream data for both servers using the resolved streamId
+  const [streamData, server2Streams] = await Promise.all([
+    fetchStreamData(streamId).catch(() => ({ events: [] })),
+    fetchServer2Data(streamId).catch(() => []),
   ]);
 
   const hasEvents = (streamData.events && streamData.events.length > 0) || server2Streams.length > 0;
@@ -41,7 +52,7 @@ export default async function MatchPage({ searchParams }: PageProps) {
         <StreamViewer
           events={streamData.events || []}
           server2Streams={server2Streams}
-          id={tenimtv}
+          id={streamId}
           matchDetails={matchDetails}
         />
       )}
