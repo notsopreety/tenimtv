@@ -1,3 +1,6 @@
+import fs from "fs/promises";
+import path from "path";
+
 export interface Match {
   name: string;
   image: string;
@@ -217,5 +220,41 @@ export async function findMatchDetails(id: string): Promise<FootballMatch | null
   } catch (e) {
     console.error("Error finding match details:", e);
     return null;
+  }
+}
+
+export interface Server2Stream {
+  name: string;
+  url: string;
+}
+
+export async function fetchServer2Data(id: string): Promise<Server2Stream[]> {
+  try {
+    const cleanId = id.trim().replace(/\.json$/i, "").toLowerCase();
+    const filePath = path.join(process.cwd(), "app/data", `${cleanId}.txt`);
+    
+    try {
+      await fs.access(filePath);
+    } catch {
+      return [];
+    }
+
+    const content = await fs.readFile(filePath, "utf-8");
+    const lines = content.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    
+    // First line is match title/header
+    // Rest of the lines are Name and URL pairs
+    const streams: Server2Stream[] = [];
+    for (let i = 1; i < lines.length; i += 2) {
+      const name = lines[i];
+      const url = lines[i + 1];
+      if (name && url) {
+        streams.push({ name, url });
+      }
+    }
+    return streams;
+  } catch (error) {
+    console.error("Error reading Server 2 data:", error);
+    return [];
   }
 }

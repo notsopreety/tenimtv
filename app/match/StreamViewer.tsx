@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { StreamEvent, FootballMatch } from "@/app/utils/fetchData";
+import { StreamEvent, FootballMatch, Server2Stream } from "@/app/utils/fetchData";
 import { Tv, User, ShieldAlert, Award, AlignJustify } from "lucide-react";
+import dynamic from "next/dynamic";
+
+const StreamPlayer = dynamic(() => import("../components/StreamPlayer"), { ssr: false });
 
 interface StreamViewerProps {
   events: StreamEvent[];
+  server2Streams: Server2Stream[];
   id: string;
   matchDetails: FootballMatch | null;
 }
@@ -15,10 +19,27 @@ interface StreamSource {
   url: string;
 }
 
-export default function StreamViewer({ events, id, matchDetails }: StreamViewerProps) {
+export default function StreamViewer({ events, server2Streams, id, matchDetails }: StreamViewerProps) {
+  const [activeServer, setActiveServer] = useState<1 | 2>(server2Streams && server2Streams.length > 0 ? 2 : 1);
   const [activeInsightTab, setActiveInsightTab] = useState<"event-info" | "h2h" | "lineups" | "pregame">("event-info");
   const [team1Error, setTeam1Error] = useState(false);
   const [team2Error, setTeam2Error] = useState(false);
+
+  const [activeServer2Index, setActiveServer2Index] = useState(0);
+
+  const getChannelId = (url: string) => {
+    let channelId: string | null = null;
+    try {
+      const parsedUrl = new URL(url);
+      channelId = parsedUrl.searchParams.get("id");
+    } catch {
+      const match = url.match(/[?&]id=([^&]+)/);
+      if (match) {
+        channelId = match[1];
+      }
+    }
+    return channelId;
+  };
 
   const isAd = (url: string) => {
     const l = url.toLowerCase();
@@ -231,48 +252,120 @@ export default function StreamViewer({ events, id, matchDetails }: StreamViewerP
         </div>
       )}
 
+      {/* Server selector tabs */}
+      {server2Streams && server2Streams.length > 0 && streamSources.length > 0 && (
+        <div className="flex border-b border-zinc-200 dark:border-zinc-800 gap-1 pb-px">
+          <button
+            onClick={() => {
+              setActiveServer(1);
+            }}
+            className={`px-5 py-3 text-sm font-bold border-b-2 transition-all duration-200 cursor-pointer shrink-0 ${
+              activeServer === 1
+                ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 font-extrabold"
+                : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+            }`}
+          >
+            Streaming Server 1
+          </button>
+          <button
+            onClick={() => {
+              setActiveServer(2);
+            }}
+            className={`px-5 py-3 text-sm font-bold border-b-2 transition-all duration-200 cursor-pointer shrink-0 ${
+              activeServer === 2
+                ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 font-extrabold"
+                : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+            }`}
+          >
+            Streaming Server 2
+          </button>
+        </div>
+      )}
+
       {/* 2. Video Player & Servers List */}
       <div className="space-y-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/40 p-4 sm:p-5 backdrop-blur-md">
-        {currentStreamUrl ? (
-          <div className="space-y-6">
-            <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-black shadow-lg">
-              <iframe
-                src={currentStreamUrl}
-                className="absolute inset-0 h-full w-full"
-                allowFullScreen
-                scrolling="no"
-                allow="autoplay; encrypted-media"
-              />
-            </div>
+        {activeServer === 1 ? (
+          streamSources.length > 0 ? (
+            <div className="space-y-6">
+              {/* Direct iframe container for Server 1 streams to use their own framed player UI */}
+              <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black border border-zinc-200 dark:border-zinc-800 shadow-2xl">
+                <iframe
+                  src={currentStreamUrl}
+                  className="w-full h-full border-0"
+                  allow="autoplay; encrypted-media; fullscreen"
+                  allowFullScreen
+                />
+              </div>
 
-            {/* Servers Selector */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Tv className="h-4 w-4" /> Select Streaming Server
-              </h3>
-              <div className="flex flex-wrap gap-2.5">
-                {streamSources.map((source, index) => (
-                  <button
-                    key={`source-${index}`}
-                    onClick={() => setActiveSourceIndex(index)}
-                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold border transition-all duration-200 cursor-pointer ${
-                      activeSourceIndex === index
-                        ? "bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/20"
-                        : "bg-white dark:bg-zinc-900/50 text-zinc-700 dark:text-zinc-350 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
-                    }`}
-                  >
-                    {getCleanServerName(source.name)}
-                  </button>
-                ))}
+              {/* Servers Selector */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Tv className="h-4 w-4" /> Select Streaming Server 1 Channel
+                </h3>
+                <div className="flex flex-wrap gap-2.5">
+                  {streamSources.map((source, index) => (
+                    <button
+                      key={`source-${index}`}
+                      onClick={() => setActiveSourceIndex(index)}
+                      className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold border transition-all duration-200 cursor-pointer ${
+                        activeSourceIndex === index
+                          ? "bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/20"
+                          : "bg-white dark:bg-zinc-900/50 text-zinc-700 dark:text-zinc-350 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
+                      }`}
+                    >
+                      {getCleanServerName(source.name)}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 text-center bg-zinc-50 dark:bg-zinc-900/10 rounded-2xl border border-dashed border-zinc-200 dark:border-white/5">
+              <Tv className="h-10 w-10 text-zinc-400 dark:text-zinc-650 mb-3" />
+              <p className="text-zinc-655 dark:text-zinc-400 font-medium">No active streaming server 1 link found</p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-600 mt-1">Please try again later or verify another event link.</p>
+            </div>
+          )
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-center bg-zinc-50 dark:bg-zinc-900/10 rounded-2xl border border-dashed border-zinc-200 dark:border-white/5">
-            <Tv className="h-10 w-10 text-zinc-400 dark:text-zinc-650 mb-3" />
-            <p className="text-zinc-650 dark:text-zinc-400 font-medium">No active streaming server link found</p>
-            <p className="text-xs text-zinc-400 dark:text-zinc-600 mt-1">Please try again later or verify another event link.</p>
-          </div>
+          server2Streams.length > 0 ? (
+            <div className="space-y-6">
+              <StreamPlayer
+                channelName={server2Streams[activeServer2Index].name}
+                url={server2Streams[activeServer2Index].url}
+                id={getChannelId(server2Streams[activeServer2Index].url)}
+              />
+
+              {/* Servers Selector */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Tv className="h-4 w-4" /> Select Streaming Server 2 Channel
+                </h3>
+                <div className="flex flex-wrap gap-2.5">
+                  {server2Streams.map((source, index) => (
+                    <button
+                      key={`source2-${index}`}
+                      onClick={() => {
+                        setActiveServer2Index(index);
+                      }}
+                      className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold border transition-all duration-200 cursor-pointer ${
+                        activeServer2Index === index
+                          ? "bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/20"
+                          : "bg-white dark:bg-zinc-900/50 text-zinc-700 dark:text-zinc-350 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
+                      }`}
+                    >
+                      {source.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 text-center bg-zinc-50 dark:bg-zinc-900/10 rounded-2xl border border-dashed border-zinc-200 dark:border-white/5">
+              <Tv className="h-10 w-10 text-zinc-400 dark:text-zinc-650 mb-3" />
+              <p className="text-zinc-650 dark:text-zinc-400 font-medium">No active streaming server 2 link found</p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-600 mt-1">Please select another server source or check back later.</p>
+            </div>
+          )
         )}
       </div>
 

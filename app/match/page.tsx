@@ -1,4 +1,4 @@
-import { fetchStreamData, findMatchDetails } from "@/app/utils/fetchData";
+import { fetchStreamData, findMatchDetails, fetchServer2Data } from "@/app/utils/fetchData";
 import StreamViewer from "./StreamViewer";
 import { Tv } from "lucide-react";
 
@@ -20,25 +20,27 @@ export default async function MatchPage({ searchParams }: PageProps) {
     );
   }
 
-  // Fetch both stream links and match metadata concurrently
-  const [streamData, matchDetails] = await Promise.all([
+  // Fetch stream links, Server 2 links, and match metadata concurrently
+  const [streamData, server2Streams, matchDetails] = await Promise.all([
     fetchStreamData(tenimtv).catch(() => ({ events: [] })),
+    fetchServer2Data(tenimtv).catch(() => []),
     findMatchDetails(tenimtv).catch(() => null),
   ]);
 
-  const hasEvents = streamData.events && streamData.events.length > 0;
+  const hasEvents = (streamData.events && streamData.events.length > 0) || server2Streams.length > 0;
 
   return (
     <div className="w-full">
       {!hasEvents && !matchDetails ? (
         <div className="flex flex-col items-center justify-center py-20 text-center max-w-4xl mx-auto">
-          <Tv className="h-12 w-12 text-zinc-400 dark:text-zinc-650 mb-4" />
+          <Tv className="h-12 w-12 text-zinc-400 dark:text-zinc-655 mb-4" />
           <h1 className="text-2xl font-extrabold text-zinc-900 dark:text-white">Stream Offline</h1>
           <p className="text-zinc-500 text-sm mt-1">Failed to load stream. The match might be over or scheduling details have expired.</p>
         </div>
       ) : (
         <StreamViewer
           events={streamData.events || []}
+          server2Streams={server2Streams}
           id={tenimtv}
           matchDetails={matchDetails}
         />
